@@ -7,6 +7,9 @@
 class AdbManager {
 public:
     AdbManager();
+    ~AdbManager();
+    bool BeginDisplayOff(std::string& status);
+    void EndDisplayOff();
     bool Prepare(std::string& status);
     bool RepairVideoForward(std::string& status);
     std::optional<int> GetDisplayRotationDegrees() const;
@@ -30,4 +33,7 @@ private:
     std::filesystem::path adbPath_;
     mutable std::mutex deviceMutex_;
     std::wstring deviceSerial_;
+    HANDLE displayProcess_{};
+    HANDLE displayInput_{};
+    HANDLE displayOutput_{};
 };

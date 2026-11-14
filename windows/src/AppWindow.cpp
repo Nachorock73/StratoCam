@@ -274,11 +274,16 @@ bool AppWindow::OnCreate() {
 
     renderer_.Initialize(preview_);
     renderer_.SetViewTransform(90, PreviewScaleMode::Fit);
+    previewPlaceholder_ = CreateWindowExW(0, L"STATIC", L"Please connect an Android device via USB.",
+        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE, 0, 0, 10, 10,
+        window_, nullptr, instance_, nullptr);
+    SendMessageW(previewPlaceholder_, WM_SETFONT, reinterpret_cast<WPARAM>(bodyFont_), FALSE);
     PipelineDiagnostics::Reset(adb_.DiagnosticsDirectory() / "windows-pipeline-diagnostics.log");
     SetTimer(window_, 1, 500, nullptr);
     orientationThread_ = std::thread(&AppWindow::PollOrientation, this);
     focusThread_ = std::thread(&AppWindow::PollFocusStatus, this);
     deviceStatusThread_ = std::thread(&AppWindow::PollDeviceStatus, this);
+    displayPowerThread_ = std::thread(&AppWindow::PollDisplayPower, this);
     BeginConnect();
     return true;
 }
@@ -321,6 +326,8 @@ void AppWindow::Layout(int width, int height) {
     const int panelX = previewLayout.panelX;
     const int leftWidth = previewLayout.leftWidth;
     move(preview_, previewLayout.previewX, previewLayout.previewY,
+         previewLayout.previewWidth, previewLayout.previewHeight);
+    if (previewPlaceholder_) move(previewPlaceholder_, previewLayout.previewX, previewLayout.previewY,
          previewLayout.previewWidth, previewLayout.previewHeight);
     const int toolbarY = previewLayout.toolbarY;
     move(orientationValue_, margin + 10, toolbarY + 12, 190, 24);
@@ -853,6 +860,27 @@ void AppWindow::PollDeviceStatus() {
     }
 }
 
+void AppWindow::PollDisplayPower() {
+    bool applied = false;
+    while (!closing_.load()) {
+        const bool active = transport_.State() == VideoTransportState::Streaming && connected_.load();
+        if (active != applied) {
+            if (active) {
+                std::string status;
+                const bool poweredOff = adb_.BeginDisplayOff(status);
+                PipelineDiagnostics::Log("display-power", status);
+                if (!poweredOff) PostStatus(status);
+            } else {
+                adb_.EndDisplayOff();
+                PipelineDiagnostics::Log("display-power", "Phone display restored");
+            }
+            applied = active;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    adb_.EndDisplayOff();
+}
+
 void AppWindow::UpdateViewTransform() {
     StreamInfo info;
     { std::lock_guard lock(stateMutex_); info = streamInfo_; }
@@ -1024,6 +1052,22 @@ void AppWindow::UpdateStatusPanel() {
     const auto transportState = transport_.State();
     const bool streaming = transportState == VideoTransportState::Streaming;
     const bool connected = connected_.load();
+    if (previewPlaceholder_) {
+        const bool hasPreview = connected && streaming && renderedFrames_.load() > 0;
+        const int placeholderState = hasPreview ? 4 : !connected ? 0
+            : transportState == VideoTransportState::Stopped ? 1
+            : transportState == VideoTransportState::Error ? 2 : 3;
+        if (previewPlaceholderState_ != placeholderState) {
+            previewPlaceholderState_ = placeholderState;
+            const wchar_t* message = placeholderState == 0 ? L"Please connect an Android device via USB."
+                : placeholderState == 1 ? L"Video stopped. Select Start to begin."
+                : placeholderState == 2 ? L"Video unavailable. Select Start to reconnect."
+                : L"Starting camera preview…";
+            SetWindowTextW(previewPlaceholder_, message);
+            ShowWindow(previewPlaceholder_, hasPreview ? SW_HIDE : SW_SHOWNA);
+            PipelineDiagnostics::Log("preview-state", hasPreview ? "Live preview visible" : WideToUtf8(message));
+        }
+    }
     SetWindowTextW(connectionStatus_, connected ? L"●  CONNECTED" : L"●  DISCONNECTED");
     SetWindowTextW(streamStatus_, VideoTransportStateLabel(transportState));
     const int64_t totalSeconds = recording.durationUs / 1'000'000;
@@ -1238,6 +1282,7 @@ void AppWindow::OnDestroy() {
     if (orientationThread_.joinable()) orientationThread_.join();
     if (focusThread_.joinable()) focusThread_.join();
     if (deviceStatusThread_.joinable()) deviceStatusThread_.join();
+    if (displayPowerThread_.joinable()) displayPowerThread_.join();
     ExportLatency();
     obsPublisher_.Shutdown();
     virtualCameraPublisher_.Shutdown();

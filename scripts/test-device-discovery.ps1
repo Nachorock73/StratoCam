@@ -43,6 +43,7 @@ function Wait-Log([string]$Pattern, [int]$Seconds = 45) {
 $process = Start-Process -FilePath (Join-Path $directory 'StratoCam.exe') -WindowStyle Hidden -PassThru
 try {
     Wait-Log 'Discovery retry scheduled'
+    Wait-Log 'Please connect an Android device via USB'
     # Keep the fake device absent for two attempts, then expose the actual USB phone.
     Start-Sleep -Seconds 4
     $absentLog = Get-Content -LiteralPath $log -Raw
@@ -51,6 +52,7 @@ try {
     Wait-Log 'Decoder ready; starting video transport'
     Wait-Log 'STREAMING first H.264 access unit received'
     Wait-Log 'decoded-frame slot submitted=[1-9]'
+    Wait-Log 'Live preview visible'
     Copy-Item -LiteralPath $log -Destination (Join-Path $directory 'pipeline.log')
     $result = [ordered]@{
         scenario = 'empty discovery -> automatic retry -> real USB device -> decoder'

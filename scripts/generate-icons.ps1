@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $sourcePath)) { throw "Canonical logo not found
 
 $source = [Drawing.Image]::FromFile($sourcePath)
 try {
-    function New-ScaledBitmap([int]$Size) {
+    function New-ScaledBitmap([int]$Size, [double]$ContentScale = 1.0) {
         $bitmap = [Drawing.Bitmap]::new($Size, $Size, [Drawing.Imaging.PixelFormat]::Format32bppArgb)
         $graphics = [Drawing.Graphics]::FromImage($bitmap)
         try {
@@ -20,7 +20,9 @@ try {
             $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $graphics.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::HighQuality
             $graphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::HighQuality
-            $graphics.DrawImage($source, [Drawing.Rectangle]::new(0, 0, $Size, $Size))
+            $contentSize = [int][Math]::Round($Size * $ContentScale)
+            $inset = [int][Math]::Round(($Size - $contentSize) / 2.0)
+            $graphics.DrawImage($source, [Drawing.Rectangle]::new($inset, $inset, $contentSize, $contentSize))
         } finally { $graphics.Dispose() }
         return $bitmap
     }
@@ -29,13 +31,14 @@ try {
     foreach ($entry in $densities.GetEnumerator()) {
         $directory = Join-Path $root "app\src\main\res\mipmap-$($entry.Key)"
         [IO.Directory]::CreateDirectory($directory) | Out-Null
-        $bitmap = New-ScaledBitmap $entry.Value
+        # Leave breathing room inside both legacy and adaptive launcher masks.
+        $bitmap = New-ScaledBitmap $entry.Value 0.85
         try {
             $bitmap.Save((Join-Path $directory 'ic_launcher.png'), [Drawing.Imaging.ImageFormat]::Png)
             $bitmap.Save((Join-Path $directory 'ic_launcher_round.png'), [Drawing.Imaging.ImageFormat]::Png)
         } finally { $bitmap.Dispose() }
 
-        $foreground = New-ScaledBitmap ([int]($entry.Value * 2.25))
+        $foreground = New-ScaledBitmap ([int]($entry.Value * 2.25)) 0.85
         try { $foreground.Save((Join-Path $directory 'ic_launcher_foreground.png'), [Drawing.Imaging.ImageFormat]::Png) }
         finally { $foreground.Dispose() }
     }

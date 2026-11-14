@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.5.1"
+  #define AppVersion "0.5.2"
 #endif
 #ifndef StageDir
   #define StageDir "..\release\staging\StratoCam"
@@ -19,6 +19,10 @@ AppVerName=StratoCam {#AppVersion}
 AppPublisher=StratoCam contributors
 DefaultDirName={autopf}\StratoCam
 DefaultGroupName=StratoCam
+DisableWelcomePage=no
+DisableDirPage=no
+DisableReadyPage=no
+AlwaysShowDirOnReadyPage=yes
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
 OutputBaseFilename={#SetupBaseName}
@@ -40,23 +44,46 @@ VersionInfoProductName=StratoCam
 VersionInfoDescription=StratoCam x64 installer
 
 [Languages]
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+spanish.Shortcuts=Accesos directos:
+spanish.DesktopShortcut=Crear un acceso directo en el escritorio
+spanish.StartMenuShortcut=Crear un acceso directo en el menú Inicio
+spanish.Integrations=Integraciones:
+spanish.ObsPlugin=Instalar la fuente StratoCam para OBS Studio 32.2.2
+spanish.OpenApp=Abrir StratoCam
+spanish.Destination=Carpeta de instalación:
+spanish.RegisteringCamera=Registrando la webcam StratoCam…
+spanish.InstallProgress=Instalando archivos
+english.Shortcuts=Shortcuts:
+english.DesktopShortcut=Create a desktop shortcut
+english.StartMenuShortcut=Create a Start Menu shortcut
+english.Integrations=Integrations:
+english.ObsPlugin=Install the StratoCam source for OBS Studio 32.2.2
+english.OpenApp=Open StratoCam
+english.Destination=Installation folder:
+english.RegisteringCamera=Registering StratoCam webcam…
+english.InstallProgress=Installing files
+
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
-Name: "obsplugin"; Description: "Install the StratoCam source for OBS Studio 32.2.2"; GroupDescription: "Integrations:"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked
+Name: "startmenuicon"; Description: "{cm:StartMenuShortcut}"; GroupDescription: "{cm:Shortcuts}"
+Name: "obsplugin"; Description: "{cm:ObsPlugin}"; GroupDescription: "{cm:Integrations}"; Flags: unchecked
 
 [Files]
+Source: "prepare-camera-update.ps1"; Flags: dontcopy
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\OBS\stratocam-obs.dll"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs\bin\64bit"; Tasks: obsplugin; Flags: ignoreversion
 Source: "{#StageDir}\OBS\LICENSE_NOTICE.md"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs"; Tasks: obsplugin; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\StratoCam"; Filename: "{app}\StratoCam.exe"; WorkingDir: "{app}"
+Name: "{group}\StratoCam"; Filename: "{app}\StratoCam.exe"; WorkingDir: "{app}"; Tasks: startmenuicon
 Name: "{autodesktop}\StratoCam"; Filename: "{app}\StratoCam.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\StratoCam.exe"; Description: "Open StratoCam"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\StratoCam.exe"; Description: "{cm:OpenApp}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{app}\platform-tools\adb.exe"; Parameters: "kill-server"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "StratoCamAdbServer"
@@ -70,6 +97,72 @@ Type: filesandordirs; Name: "{app}\platform-tools"
 Type: filesandordirs; Name: "{commonappdata}\obs-studio\plugins\android-cam-obs"; Tasks: obsplugin
 
 [Code]
+var
+  InstallationPathLabel: TNewStaticText;
+  InstallationProgressLabel: TNewStaticText;
+  CameraUpdatePrepared: Boolean;
+
+function RunCameraUpdateAction(Action: String): Boolean;
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  Parameters := '-NoProfile -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{tmp}\prepare-camera-update.ps1') + '" -Action ' + Action +
+    ' -StateFile "' + ExpandConstant('{tmp}\stratocam-frameserver.flag') + '"';
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := Result and (ResultCode = 0);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  ExtractTemporaryFile('prepare-camera-update.ps1');
+  CameraUpdatePrepared := True;
+  if not RunCameraUpdateAction('Stop') then
+    Result := 'Could not release the webcam for update. Close camera applications and try again.'
+  else
+    Result := '';
+end;
+
+procedure DeinitializeSetup;
+begin
+  if CameraUpdatePrepared then
+    if not RunCameraUpdateAction('Restore') then
+      Log('Windows Camera Frame Server could not be restored automatically.');
+end;
+
+procedure InitializeWizard;
+begin
+  InstallationPathLabel := TNewStaticText.Create(WizardForm);
+  InstallationPathLabel.Parent := WizardForm.InstallingPage;
+  InstallationPathLabel.AutoSize := False;
+  InstallationPathLabel.WordWrap := True;
+  InstallationPathLabel.SetBounds(WizardForm.ProgressGauge.Left,
+    WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(14),
+    WizardForm.ProgressGauge.Width, ScaleY(44));
+  InstallationProgressLabel := TNewStaticText.Create(WizardForm);
+  InstallationProgressLabel.Parent := WizardForm.InstallingPage;
+  InstallationProgressLabel.AutoSize := False;
+  InstallationProgressLabel.SetBounds(WizardForm.ProgressGauge.Left,
+    InstallationPathLabel.Top + InstallationPathLabel.Height + ScaleY(8),
+    WizardForm.ProgressGauge.Width, ScaleY(20));
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpInstalling then
+    InstallationPathLabel.Caption := CustomMessage('Destination') + #13#10 +
+      ExpandConstant('{app}');
+end;
+
+procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);
+begin
+  if MaxProgress > 0 then
+    InstallationProgressLabel.Caption := CustomMessage('InstallProgress') + ': ' +
+      IntToStr(Round(100.0 * CurProgress / MaxProgress)) + '%';
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -77,7 +170,8 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
-    WizardForm.StatusLabel.Caption := 'Registering StratoCam webcam…';
+    WizardForm.StatusLabel.Caption := CustomMessage('RegisteringCamera');
+    InstallationProgressLabel.Caption := CustomMessage('RegisteringCamera');
     Parameters := '-NoProfile -ExecutionPolicy Bypass -File "' +
       ExpandConstant('{app}\Support\virtual-camera-registration.ps1') +
       '" -Action Install -InstallRoot "' + ExpandConstant('{app}') + '"';
@@ -88,5 +182,7 @@ begin
     if ResultCode <> 0 then
       RaiseException('StratoCam webcam registration failed (code ' + IntToStr(ResultCode) +
         '). Run the installer again to repair the installation.');
+    if not RunCameraUpdateAction('Restore') then
+      RaiseException('Could not restart Windows Camera Frame Server after updating StratoCam.');
   end;
 end;

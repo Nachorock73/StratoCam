@@ -4,17 +4,17 @@ Usa la cámara de tu teléfono Android en Windows mediante USB. StratoCam ofrece
 
 ## Descargar
 
-[**Descargar StratoCam para Windows y Android — v0.5.1**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.1)
+[**Descargar StratoCam para Windows y Android — v0.5.2**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.2)
 
-- **Windows:** `StratoCam-Setup-v0.5.1.exe`
-- **Android:** `StratoCam-Android-v0.5.1.apk`
+- **Windows:** `StratoCam-Setup-v0.5.2.exe`
+- **Android:** `StratoCam-Android-v0.5.2.apk`
 - **Integridad de las descargas:** `SHA256SUMS.txt`
 
 No necesitas compilar el proyecto, instalar herramientas de desarrollo ni ejecutar comandos.
 
 ## Instalar y conectar
 
-1. Ejecuta el instalador de Windows y acepta la autorización de administrador. El instalador incluye ADB, las dependencias y el registro automático de la webcam **StratoCam**. La integración con OBS es opcional.
+1. Ejecuta el instalador de Windows y acepta la autorización de administrador. Elige la carpeta de instalación (por defecto `C:\Program Files\StratoCam`) y los accesos directos de escritorio y menú Inicio. Verás la ruta y una barra de progreso durante la instalación. El instalador incluye ADB, las dependencias y el registro automático de la webcam **StratoCam**. La integración con OBS es opcional.
 2. En el teléfono, abre la APK descargada e instálala. Android puede pedir autorización para instalar aplicaciones desde el navegador o gestor de archivos.
 3. Abre StratoCam en Android y permite el acceso a la cámara.
 4. Activa **Opciones de desarrollador → Depuración USB** en Android y conecta el teléfono con un cable USB de datos.
@@ -22,6 +22,8 @@ No necesitas compilar el proyecto, instalar herramientas de desarrollo ni ejecut
 6. Abre StratoCam en Windows. La aplicación detecta el dispositivo autorizado e inicia el video. Si conectas el teléfono después de abrirla, reintenta la detección automáticamente.
 
 La autorización de Windows se pide durante la instalación. Los permisos de cámara y depuración USB se aceptan en Android; son permisos del sistema que la aplicación no puede concederse sola.
+
+Sin teléfono conectado, la preview muestra **Please connect an Android device via USB**. Al comenzar a recibir video, StratoCam apaga el panel físico del teléfono en dispositivos compatibles, manteniendo la captura activa. Al detener el stream o cerrar la aplicación, restaura la pantalla. Este control utiliza la conexión ADB autorizada; si el fabricante no lo admite, el video continúa con la pantalla encendida.
 
 ## Usar como webcam
 
@@ -54,7 +56,7 @@ Selecciona la integración OBS durante la instalación. Reinicia OBS Studio 32.2
 - 1080p30 y 4K30 dependen de las capacidades de la cámara y del teléfono; los controles manuales también dependen del hardware.
 - Decodificación por hardware con Media Foundation/D3D11 y fallback OpenH264.
 
-**Versión 0.5.1, en desarrollo.** Existen limitaciones de compatibilidad y una incidencia visual pendiente al maximizar la ventana. La aplicación utiliza actualmente la cámara `0`; no incorpora todavía un selector universal de lentes. El instalador Windows no tiene firma Authenticode y Windows puede mostrar una advertencia de editor desconocido. La APK sí está firmada.
+**Versión 0.5.2, en desarrollo.** Existen limitaciones de compatibilidad y una incidencia visual pendiente al maximizar la ventana. La aplicación utiliza actualmente la cámara `0`; no incorpora todavía un selector universal de lentes. El instalador Windows no tiene firma Authenticode y Windows puede mostrar una advertencia de editor desconocido. La APK sí está firmada.
 
 No incluye audio desde Android, HEVC ni modos de alta velocidad.
 

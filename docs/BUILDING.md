@@ -21,3 +21,5 @@ Las dependencias se descargan a `.tools/`, sin modificar el PATH global. `versio
 Los artefactos se generan en `dist/`, con sus licencias y `SHA256SUMS.txt`. El instalador incluye ADB, bibliotecas multimedia, APK, webcam y el módulo OBS opcional. El registro de webcam se ejecuta automáticamente durante la instalación con privilegios de administrador y se comprueba su código de salida.
 
 Los scripts de instalación manual de componentes se conservan para desarrollo y diagnóstico; no forman parte del flujo de un usuario que descarga el instalador.
+
+El empaquetado compila también `android-shell/src/com/stratocam/shell/DisplayPower.java` mediante el JDK y D8 locales. El DEX se instala en `Support/` y Windows lo ejecuta como shell a través de ADB para controlar el panel físico. No utiliza permisos privilegiados de la APK. La sesión conserva stdin abierto y restaura el panel al liberar ese canal. El control depende de APIs del sistema que algunos fabricantes o versiones Android pueden no exponer; en ese caso se conserva el stream con pantalla encendida.

@@ -17,6 +17,7 @@ function Assert-ChildPath([string]$Path, [string]$Parent) {
 }
 
 $root = Split-Path -Parent $PSScriptRoot
+& (Join-Path $PSScriptRoot 'build-display-control.ps1')
 $release = ConvertFrom-StringData (Get-Content -Raw (Join-Path $root 'version.properties'))
 $version = $release.versionName
 $stagingParent = Join-Path $root 'release\staging'
@@ -32,6 +33,8 @@ if ($CleanDist -and (Test-Path -LiteralPath $dist)) { Remove-Item -LiteralPath $
 [IO.Directory]::CreateDirectory($dist) | Out-Null
 
 $windowsBin = Join-Path $root 'windows\build\bin'
+Copy-Required (Join-Path $root 'android-shell\build\StratoCamDisplayControl.dex') `
+    (Join-Path $stage 'Support\StratoCamDisplayControl.dex')
 Copy-Required (Join-Path $windowsBin 'StratoCam.exe') (Join-Path $stage 'StratoCam.exe')
 foreach ($file in 'avformat-63.dll','avcodec-63.dll','avutil-61.dll','swresample-7.dll','libwinpthread-1.dll') {
     Copy-Required (Join-Path $windowsBin $file) (Join-Path $stage $file)

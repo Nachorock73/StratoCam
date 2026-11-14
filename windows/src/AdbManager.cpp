@@ -36,6 +36,78 @@ AdbManager::AdbManager() {
     fs::create_directories(diagnosticsDirectory_, ignored);
 }
 
+AdbManager::~AdbManager() { EndDisplayOff(); }
+
+void AdbManager::EndDisplayOff() {
+    if (displayInput_) { CloseHandle(displayInput_); displayInput_ = nullptr; }
+    if (displayProcess_) {
+        // Closing stdin releases the phone-side display lease, including when
+        // the desktop process exits unexpectedly and Windows closes its handles.
+        WaitForSingleObject(displayProcess_, 5000);
+        CloseHandle(displayProcess_);
+        displayProcess_ = nullptr;
+    }
+    if (displayOutput_) { CloseHandle(displayOutput_); displayOutput_ = nullptr; }
+}
+
+bool AdbManager::BeginDisplayOff(std::string& status) {
+    EndDisplayOff();
+    const auto helper = developmentRoot_.empty()
+        ? applicationDirectory_ / "Support" / "StratoCamDisplayControl.dex"
+        : developmentRoot_ / "android-shell" / "build" / "StratoCamDisplayControl.dex";
+    if (!fs::exists(helper)) { status = "Display power helper is missing; phone screen remains on"; return false; }
+    const auto pushed = RunForDevice(L"push \"" + helper.wstring() +
+                                     L"\" /data/local/tmp/stratocam-display-control.dex");
+    if (pushed.exitCode != 0) { status = "Could not prepare display control: " + pushed.output; return false; }
+    std::wstring serial;
+    { std::lock_guard lock(deviceMutex_); serial = deviceSerial_; }
+    if (serial.empty()) { status = "No phone selected for display control"; return false; }
+    SECURITY_ATTRIBUTES security{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE inputRead = nullptr, outputWrite = nullptr;
+    if (!CreatePipe(&inputRead, &displayInput_, &security, 0) ||
+        !CreatePipe(&displayOutput_, &outputWrite, &security, 0)) {
+        if (inputRead) CloseHandle(inputRead);
+        if (outputWrite) CloseHandle(outputWrite);
+        EndDisplayOff(); status = "Could not create display control pipes"; return false;
+    }
+    SetHandleInformation(displayInput_, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(displayOutput_, HANDLE_FLAG_INHERIT, 0);
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = inputRead;
+    startup.hStdOutput = outputWrite;
+    startup.hStdError = outputWrite;
+    PROCESS_INFORMATION process{};
+    std::wstring command = L"\"" + adbPath_.wstring() + L"\" -s " + serial +
+        L" shell CLASSPATH=/data/local/tmp/stratocam-display-control.dex app_process / com.stratocam.shell.DisplayPower";
+    const bool launched = CreateProcessW(nullptr, command.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW, nullptr, runtimeRoot_.wstring().c_str(), &startup, &process);
+    CloseHandle(inputRead); CloseHandle(outputWrite);
+    if (!launched) { EndDisplayOff(); status = "Could not launch display power control"; return false; }
+    displayProcess_ = process.hProcess;
+    CloseHandle(process.hThread);
+    std::string output;
+    const auto deadline = GetTickCount64() + 8000;
+    while (GetTickCount64() < deadline) {
+        DWORD available = 0;
+        if (!PeekNamedPipe(displayOutput_, nullptr, 0, nullptr, &available, nullptr)) break;
+        if (available) {
+            char buffer[2048]; DWORD read = 0;
+            if (!ReadFile(displayOutput_, buffer, std::min<DWORD>(available, sizeof(buffer)), &read, nullptr)) break;
+            output.append(buffer, read);
+            if (output.find("STRATOCAM_DISPLAY_OFF") != std::string::npos) {
+                status = "Phone display powered off; video capture remains active";
+                return true;
+            }
+        } else if (WaitForSingleObject(displayProcess_, 0) == WAIT_OBJECT_0) break;
+        Sleep(20);
+    }
+    EndDisplayOff();
+    status = "Device does not support physical display power control; screen remains on: " + output;
+    return false;
+}
+
 std::optional<fs::path> AdbManager::FindDevelopmentRoot(const fs::path& start) {
     fs::path current = start;
     for (int depth = 0; depth < 8; ++depth) {

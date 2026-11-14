@@ -136,6 +136,10 @@ private:
     std::thread orientationThread_;
     std::thread focusThread_;
     std::thread deviceStatusThread_;
+    std::thread displayPowerThread_;
+    void PollDisplayPower();
+    HWND previewPlaceholder_{};
+    int previewPlaceholderState_{-1};
     std::atomic<uint64_t> renderedFrames_{};
     std::atomic<int> deviceRotationDegrees_{};
     std::atomic<int> orientationSelection_{};
