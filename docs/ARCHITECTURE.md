@@ -1,11 +1,11 @@
-# Arquitectura
+# Architecture
 
-Android captura mediante Camera2 y codifica H.264 mediante MediaCodec. Windows recibe access units Annex-B por USB/ADB y mantiene consumidores separados para decodificación y grabación.
+Android captures with Camera2 and encodes H.264 with MediaCodec. Windows receives Annex-B access units over USB/ADB and distributes them to independent decoder and recorder consumers.
 
-La preview utiliza Media Foundation, superficies D3D11/NV12 y un renderer D3D11. OpenH264 sirve como fallback. OBS y la cámara virtual reciben frames decodificados. La rama de grabación guarda el H.264 original mediante FFmpeg en MP4 fragmentado; el audio opcional proviene de WASAPI y se codifica a AAC-LC.
+Preview uses Media Foundation, D3D11/NV12 surfaces, and a D3D11 renderer. OpenH264 provides a software fallback. OBS and the virtual camera consume decoded frames. Recording preserves the original H.264 bitstream using FFmpeg and fragmented MP4; optional Windows audio comes from WASAPI and is encoded as AAC-LC.
 
-El control usa JSON Lines en el puerto local 27183; el video usa el 27184. ADB crea los forwards hacia los sockets Android enlazados a loopback. La aplicación no expone estos servicios a la red local.
+Control uses JSON Lines on local port 27183; video uses port 27184. ADB forwards these ports to Android sockets bound to loopback. The application does not expose these services to the local network.
 
-La webcam se registra como StratoCam mediante Media Foundation para todos los usuarios. Su registro COM, archivo compartido y permisos se configuran por el instalador elevado. La desinstalación retira esa integración. Los identificadores internos históricos se mantienen por compatibilidad y no son nombres visibles del producto.
+The webcam is registered as StratoCam through Media Foundation for all Windows users. The elevated installer configures its COM registration, shared frame file, and permissions. Uninstall removes this integration. Historical internal identifiers remain for compatibility and are not product display names.
 
-Las capacidades y límites de exposición, enfoque, WB y zoom se consultan a Android. La versión actual selecciona cameraId 0. La disponibilidad de resoluciones y controles depende del dispositivo.
+Exposure, focus, white balance, and zoom capabilities are queried from Android. The current camera selection uses camera ID 0. Available resolutions and controls depend on device capabilities.

@@ -1,79 +1,90 @@
 # StratoCam
 
-Usa la cámara de tu teléfono Android en Windows mediante USB. StratoCam ofrece preview en vivo, controles de cámara, grabación local y una webcam virtual que otras aplicaciones pueden seleccionar como **StratoCam (Windows Virtual Camera)**.
+Use your Android phone as a USB camera for Windows. StratoCam provides a live preview, camera controls, local recording, an OBS source, and a virtual webcam listed as **StratoCam (Windows Virtual Camera)**.
 
-## Descargar
+## Download
 
-[**Descargar StratoCam para Windows y Android — v0.5.2**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.2)
+[**Download StratoCam for Windows and Android — v0.5.3**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.3)
 
-- **Windows:** `StratoCam-Setup-v0.5.2.exe`
-- **Android:** `StratoCam-Android-v0.5.2.apk`
-- **Integridad de las descargas:** `SHA256SUMS.txt`
+- **Windows:** `StratoCam-Setup-v0.5.3.exe`
+- **Android:** `StratoCam-Android-v0.5.3.apk`
+- **Download integrity:** `SHA256SUMS.txt`
 
-No necesitas compilar el proyecto, instalar herramientas de desarrollo ni ejecutar comandos.
+You do not need development tools or registration commands to use StratoCam.
 
-## Instalar y conectar
+## Install on Windows
 
-1. Ejecuta el instalador de Windows y acepta la autorización de administrador. Elige la carpeta de instalación (por defecto `C:\Program Files\StratoCam`) y los accesos directos de escritorio y menú Inicio. Verás la ruta y una barra de progreso durante la instalación. El instalador incluye ADB, las dependencias y el registro automático de la webcam **StratoCam**. La integración con OBS es opcional.
-2. En el teléfono, abre la APK descargada e instálala. Android puede pedir autorización para instalar aplicaciones desde el navegador o gestor de archivos.
-3. Abre StratoCam en Android y permite el acceso a la cámara.
-4. Activa **Opciones de desarrollador → Depuración USB** en Android y conecta el teléfono con un cable USB de datos.
-5. Acepta en el teléfono la autorización de depuración USB del PC. Puedes marcar «Permitir siempre desde este equipo».
-6. Abre StratoCam en Windows. La aplicación detecta el dispositivo autorizado e inicia el video. Si conectas el teléfono después de abrirla, reintenta la detección automáticamente.
+Run the Windows installer and accept the administrator prompt. The English setup wizard guides you through these steps:
 
-La autorización de Windows se pide durante la instalación. Los permisos de cámara y depuración USB se aceptan en Android; son permisos del sistema que la aplicación no puede concederse sola.
+1. **Welcome:** click **Next**.
+2. **Installation folder:** use `C:\Program Files\StratoCam` or choose another folder, then click **Next**.
+3. **Shortcuts:** choose whether to create Desktop and Start Menu shortcuts. The Start Menu shortcut does not launch StratoCam when Windows starts. Click **Install**.
+4. **Installing:** follow the progress bar, percentage, file status, and destination path. Setup also registers the StratoCam webcam automatically.
+5. **Finish:** check or uncheck **Launch StratoCam**, then click **Finish**.
 
-Sin teléfono conectado, la preview muestra **Please connect an Android device via USB**. Al comenzar a recibir video, StratoCam apaga el panel físico del teléfono en dispositivos compatibles, manteniendo la captura activa. Al detener el stream o cerrar la aplicación, restaura la pantalla. Este control utiliza la conexión ADB autorizada; si el fabricante no lo admite, el video continúa con la pantalla encendida.
+ADB and the required runtime libraries are included in the installer.
 
-## Usar como webcam
+## Install on Android and connect
 
-Mantén StratoCam abierto con el video activo. En la aplicación de videollamada, navegador o capturadora selecciona **StratoCam (Windows Virtual Camera)**. Windows añade automáticamente el sufijo de cámara virtual al nombre base **StratoCam**.
+1. Open the downloaded APK on your phone and install it. Android may ask you to allow installation from your browser or file manager.
+2. Open StratoCam on Android and grant camera permission.
+3. Enable **Developer options → USB debugging** and connect the phone using a USB data cable.
+4. Accept the computer's USB debugging authorization on the phone. You can select **Always allow from this computer**.
+5. Open StratoCam on Windows. It detects the authorized device and starts video. If you connect the phone later, device discovery retries automatically.
 
-Si instalaste StratoCam mientras otra aplicación tenía abierta su lista de cámaras, reinicia esa aplicación para actualizar la lista. Sin video activo, la webcam entrega una imagen negra.
+Windows authorization is requested during installation. Camera and USB debugging permissions must be accepted on Android; an application cannot grant itself these system permissions.
 
-## Controles y grabación
+Without a connected device, the preview displays **Please connect an Android device via USB**. Once video arrives, StratoCam powers off the phone's physical display on supported devices while capture remains active. It restores the display when streaming stops or the application closes. If a device does not support this control, video continues with its display on.
 
-- **Start / Stop:** inicia o detiene el video.
-- **Exposure, Focus, White Balance y Zoom:** modos automáticos y controles manuales según lo que permita la cámara.
-- **Click-to-focus:** haz clic en la imagen con enfoque automático activo. Usa **Resume continuous AF** para volver al enfoque continuo.
-- **Orientación y escala:** Auto, Portrait, Landscape, rotaciones, Fit, Fill y tamaño real.
-- **Record:** guarda el H.264 original del teléfono en MP4 fragmentado, sin volver a codificar el video.
-- **Audio Input:** selecciona un micrófono o interfaz de audio de Windows, o **No audio**. El audio se guarda como AAC-LC a 48 kHz.
-- **Browse:** elige dónde guardar. La carpeta predeterminada es `Videos\StratoCam`.
-- **Audio Sync Offset:** ajuste manual opcional de sincronización en milisegundos.
+## Use as a webcam
 
-Elige resolución, orientación y entrada de audio antes de comenzar a grabar. Finaliza con **Stop REC**.
+Keep StratoCam open with video running, then select **StratoCam (Windows Virtual Camera)** in your video-call application, browser, or capture software. Windows automatically appends the virtual-camera suffix to the base name **StratoCam**.
+
+Restart applications that were already displaying a camera list when StratoCam was installed. Without an active stream, the virtual camera outputs black frames.
+
+## Controls and recording
+
+- **Start / Stop:** start or stop video.
+- **Exposure, Focus, White Balance, and Zoom:** automatic modes and manual controls supported by the camera.
+- **Click-to-focus:** click the image with autofocus enabled. Use **Resume continuous AF** to return to continuous focus.
+- **Orientation and scale:** Auto, Portrait, Landscape, manual rotation, Fit, Fill, and actual size.
+- **Record:** save the phone's original H.264 bitstream to fragmented MP4 without re-encoding video.
+- **Audio Input:** select a Windows microphone or audio interface, or **No audio**. Audio is encoded as AAC-LC at 48 kHz.
+- **Browse:** choose your recording folder. The default is `Videos\StratoCam`.
+- **Audio Sync Offset:** optional manual audio timing adjustment in milliseconds.
+
+Choose resolution, orientation, and audio input before recording. Use **Stop REC** to finish the file.
 
 ## OBS
 
-Selecciona la integración OBS durante la instalación. Reinicia OBS Studio 32.2.2 x64 y añade la fuente **StratoCam**. También puedes usar la webcam StratoCam como dispositivo de captura de video.
+OBS integration is installed automatically. Restart OBS Studio 32.2.2 x64 and add the **StratoCam** source. You can also select the StratoCam webcam as a video capture device.
 
-## Requisitos y estado actual
+## Requirements and current status
 
-- Windows 11 x64, build 22000 o posterior para la cámara virtual.
-- Android 6.0 o posterior con Camera2, codificador H.264 y depuración USB disponibles.
-- Un teléfono conectado por USB de datos. Algunos fabricantes requieren su controlador USB para Windows.
-- 1080p30 y 4K30 dependen de las capacidades de la cámara y del teléfono; los controles manuales también dependen del hardware.
-- Decodificación por hardware con Media Foundation/D3D11 y fallback OpenH264.
+- Windows 11 x64, build 22000 or later for the virtual camera.
+- Android 6.0 or later with Camera2, H.264 encoding, and USB debugging available.
+- One phone connected with a USB data cable. Some manufacturers require a Windows USB driver.
+- 1080p30, 4K30, and manual controls depend on the camera and device capabilities.
+- Media Foundation/D3D11 hardware decoding with OpenH264 software fallback.
 
-**Versión 0.5.2, en desarrollo.** Existen limitaciones de compatibilidad y una incidencia visual pendiente al maximizar la ventana. La aplicación utiliza actualmente la cámara `0`; no incorpora todavía un selector universal de lentes. El instalador Windows no tiene firma Authenticode y Windows puede mostrar una advertencia de editor desconocido. La APK sí está firmada.
+**Version 0.5.3 is under development.** Device compatibility varies, and a visual issue when maximizing the window remains open. The current camera selection uses camera ID `0`; a universal lens selector is not implemented. The Windows installer is not Authenticode-signed, so Windows may display an unknown-publisher warning. The Android APK is signed.
 
-No incluye audio desde Android, HEVC ni modos de alta velocidad.
+Android audio capture, HEVC, and high-frame-rate modes are not included.
 
-## Si algo no conecta
+## Troubleshooting
 
-- Desbloquea el teléfono, comprueba depuración USB y acepta la autorización del PC.
-- Usa un cable de datos y prueba otro puerto USB. En algunos teléfonos ayuda seleccionar transferencia de archivos.
-- Comprueba los permisos de cámara/micrófono para aplicaciones de escritorio en Windows.
-- Para reparar la webcam, vuelve a ejecutar el instalador. No hace falta ejecutar scripts de registro.
-- Si un dispositivo de audio no aparece, conéctalo antes de abrir StratoCam.
+- Unlock the phone, enable USB debugging, and accept the computer's authorization.
+- Use a data cable and try another USB port. Selecting file-transfer mode helps on some devices.
+- Check Windows camera and microphone permissions for desktop applications.
+- Run the installer again to repair the virtual camera. No registration scripts are required.
+- Connect audio devices before opening StratoCam if they do not appear in the input list.
 
-## Privacidad
+## Privacy
 
-La conexión de cámara funciona por USB/ADB con sockets locales. No requiere cuentas, nube ni conexión Wi-Fi, y no incorpora analítica. Las grabaciones se guardan en la carpeta elegida por el usuario.
+Video and control use USB/ADB with local sockets. StratoCam requires no account, cloud service, or Wi-Fi connection and includes no analytics. Recordings stay in your chosen folder.
 
-## Código fuente
+## Source code
 
-Consulta [la arquitectura](docs/ARCHITECTURE.md), [la compilación desde código](docs/BUILDING.md) y [la firma Android](docs/RELEASE_SIGNING.md). Estas instrucciones son para desarrollo; las descargas ya incluyen lo necesario para usar la aplicación.
+See [architecture](docs/ARCHITECTURE.md), [building from source](docs/BUILDING.md), and [Android signing](docs/RELEASE_SIGNING.md). These instructions are for development; release downloads include the components needed to run the application.
 
-Código de la aplicación bajo [Apache-2.0](LICENSE). El módulo OBS tiene su aviso GPL-2.0-or-later. Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para dependencias y licencias.
+Application code is licensed under [Apache-2.0](LICENSE). The OBS module has a separate GPL-2.0-or-later notice. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency licenses.

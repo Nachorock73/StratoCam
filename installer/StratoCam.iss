@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.5.2"
+  #define AppVersion "0.5.3"
 #endif
 #ifndef StageDir
   #define StageDir "..\release\staging\StratoCam"
@@ -21,7 +21,10 @@ DefaultDirName={autopf}\StratoCam
 DefaultGroupName=StratoCam
 DisableWelcomePage=no
 DisableDirPage=no
-DisableReadyPage=no
+DisableReadyPage=yes
+DisableFinishedPage=no
+ShowLanguageDialog=no
+UsePreviousLanguage=no
 AlwaysShowDirOnReadyPage=yes
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
@@ -44,25 +47,26 @@ VersionInfoProductName=StratoCam
 VersionInfoDescription=StratoCam x64 installer
 
 [Languages]
-Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Messages]
+WelcomeLabel1=Welcome to StratoCam
+WelcomeLabel2=Use your Android phone as a USB webcam for Windows, with live preview, camera controls, and local recording.
+ClickNext=
+SelectDirBrowseLabel=
+WizardSelectTasks=Shortcuts
+SelectTasksDesc=Desktop and Start Menu
+SelectTasksLabel2=
+FinishedHeadingLabel=StratoCam installation complete
+FinishedLabel=
+FinishedLabelNoIcons=
+ClickFinish=
+
 [CustomMessages]
-spanish.Shortcuts=Accesos directos:
-spanish.DesktopShortcut=Crear un acceso directo en el escritorio
-spanish.StartMenuShortcut=Crear un acceso directo en el menú Inicio
-spanish.Integrations=Integraciones:
-spanish.ObsPlugin=Instalar la fuente StratoCam para OBS Studio 32.2.2
-spanish.OpenApp=Abrir StratoCam
-spanish.Destination=Carpeta de instalación:
-spanish.RegisteringCamera=Registrando la webcam StratoCam…
-spanish.InstallProgress=Instalando archivos
 english.Shortcuts=Shortcuts:
 english.DesktopShortcut=Create a desktop shortcut
 english.StartMenuShortcut=Create a Start Menu shortcut
-english.Integrations=Integrations:
-english.ObsPlugin=Install the StratoCam source for OBS Studio 32.2.2
-english.OpenApp=Open StratoCam
+english.OpenApp=Launch StratoCam
 english.Destination=Installation folder:
 english.RegisteringCamera=Registering StratoCam webcam…
 english.InstallProgress=Installing files
@@ -70,13 +74,12 @@ english.InstallProgress=Installing files
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked
 Name: "startmenuicon"; Description: "{cm:StartMenuShortcut}"; GroupDescription: "{cm:Shortcuts}"
-Name: "obsplugin"; Description: "{cm:ObsPlugin}"; GroupDescription: "{cm:Integrations}"; Flags: unchecked
 
 [Files]
 Source: "prepare-camera-update.ps1"; Flags: dontcopy
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#StageDir}\OBS\stratocam-obs.dll"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs\bin\64bit"; Tasks: obsplugin; Flags: ignoreversion
-Source: "{#StageDir}\OBS\LICENSE_NOTICE.md"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs"; Tasks: obsplugin; Flags: ignoreversion
+Source: "{#StageDir}\OBS\stratocam-obs.dll"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs\bin\64bit"; Flags: ignoreversion
+Source: "{#StageDir}\OBS\LICENSE_NOTICE.md"; DestDir: "{commonappdata}\obs-studio\plugins\stratocam-obs"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\StratoCam"; Filename: "{app}\StratoCam.exe"; WorkingDir: "{app}"; Tasks: startmenuicon
@@ -94,7 +97,7 @@ Type: filesandordirs; Name: "{commonappdata}\obs-studio\plugins\stratocam-obs"
 Type: filesandordirs; Name: "{app}\platform-tools"
 
 [InstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\obs-studio\plugins\android-cam-obs"; Tasks: obsplugin
+Type: filesandordirs; Name: "{commonappdata}\obs-studio\plugins\android-cam-obs"
 
 [Code]
 var
@@ -151,6 +154,10 @@ end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  if CurPageID = wpSelectTasks then
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonInstall)
+  else if CurPageID <> wpFinished then
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonNext);
   if CurPageID = wpInstalling then
     InstallationPathLabel.Caption := CustomMessage('Destination') + #13#10 +
       ExpandConstant('{app}');
