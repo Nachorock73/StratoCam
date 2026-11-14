@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>StratoCam WebRTC smoke test</title>
+<style>
+  body { margin: 0; background: #101318; color: #eef2f7; font: 16px system-ui; }
+  main { max-width: 1100px; margin: 24px auto; padding: 0 20px; }
+  video { width: 100%; max-height: 75vh; background: #000; object-fit: contain; border-radius: 12px; }
+  #status { margin: 12px 0; color: #8bd5a8; }
+</style>
+<main>
+  <h1>StratoCam — WebRTC smoke test</h1>
+  <p id="status">Requesting a local camera…</p>
+  <video autoplay muted playsinline></video>
+</main>
+<script>
+  const status = document.querySelector('#status');
+  const video = document.querySelector('video');
+  navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30, max: 30 } }
+  }).then(stream => {
+    video.srcObject = stream;
+    const track = stream.getVideoTracks()[0];
+    const settings = track.getSettings();
+    status.textContent = `LIVE — ${track.label} — ${settings.width}x${settings.height} @ ${settings.frameRate || '?'} FPS`;
+    document.title = `LIVE — ${track.label}`;
+  }).catch(error => {
+    status.textContent = `ERROR — ${error.name}: ${error.message}`;
+    status.style.color = '#ff8d8d';
+    document.title = `ERROR — ${error.name}`;
+  });
+</script>

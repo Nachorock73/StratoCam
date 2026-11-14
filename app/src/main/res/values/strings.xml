@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StratoCam</string>
+    <string name="description">Reads camera metadata only. It does not capture, record or transmit images.</string>
+    <string name="inspect_again">Inspect again</string>
+    <string name="copy">Copy</string>
+    <string name="save_txt">Save .txt</string>
+    <string name="waiting_permission">Waiting for camera permission…</string>
+    <string name="permission_denied">Camera permission was denied. The inspector cannot produce a reliable report without it. Grant Camera permission in Android Settings and tap Inspect again.</string>
+    <string name="inspecting">Inspecting Camera2 metadata…</string>
+    <string name="inspection_failed">Inspection failed: %1$s: %2$s\n\nUse adb logcat for the full stack trace.</string>
+    <string name="report_clip_label">Camera2 capability report</string>
+    <string name="report_copied">Report copied</string>
+    <string name="report_saved">Report saved</string>
+    <string name="save_failed">Save failed: %1$s</string>
+    <string name="preview_waiting">Main rear cameraId=0 · waiting for preview surface</string>
+    <string name="preview_permission_required">Camera permission is required for preview</string>
+    <string name="preview_permission_denied">Camera permission denied. Grant it in Settings and retry.</string>
+    <string name="preview_opening">Opening cameraId=%1$s · %2$dx%3$d · requested FPS [%4$d, %5$d]</string>
+    <string name="preview_creating_session">cameraId=%1$s opened · creating capture session</string>
+    <string name="preview_running">Main rear cameraId=%1$s\n%2$dx%3$d · requested %4$d FPS · stabilization %5$s</string>
+    <string name="preview_running_effective">Main rear cameraId=%1$s\n%2$dx%3$d · effective %4$s FPS · stabilization %5$s</string>
+    <string name="preview_error">Preview error: %1$s</string>
+    <string name="retry_preview">Retry preview</string>
+    <string name="show_capabilities">Capabilities</string>
+    <string name="show_controls">Controls</string>
+    <string name="hide_controls">Close controls</string>
+    <string name="enabled">ON</string>
+    <string name="disabled">OFF</string>
+    <string name="manual_controls_title">Local Camera2 controls</string>
+    <string name="manual_controls_note">Only supported values are sent. Long shutter times can reduce preview FPS.</string>
+    <string name="exposure_section">Exposure</string>
+    <string name="auto_exposure">Auto exposure</string>
+    <string name="iso_value">ISO: %1$d · hardware range %2$d–%3$d</string>
+    <string name="shutter_value">Shutter: %1$s · range %2$d–%3$d ns</string>
+    <string name="focus_section">Focus</string>
+    <string name="continuous_autofocus">Continuous video autofocus</string>
+    <string name="focus_value">Focus distance: %1$.2f D · range 0–%2$.2f D</string>
+    <string name="white_balance_section">White balance</string>
+    <string name="auto_white_balance">Auto white balance</string>
+    <string name="white_balance_gains_note">Manual mode uses Camera2 RGGB gains. The guaranteed unclipped range is 1.0–3.0; this is not a simulated Kelvin scale.</string>
+    <string name="red_gain_value">Red gain: %1$.2f</string>
+    <string name="blue_gain_value">Blue gain: %1$.2f</string>
+    <string name="zoom_section">Lens</string>
+    <string name="zoom_value">Zoom ratio: %1$.2fx · range %2$.1f–%3$.1f</string>
+    <string name="seconds_value">%1$.2f s</string>
+    <string name="shutter_fraction_value">1/%1$d s (%2$.2f ms)</string>
+</resources>

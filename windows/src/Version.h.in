@@ -1,0 +1,4 @@
+#pragma once
+
+inline constexpr wchar_t kProductName[] = L"@STRATOCAM_PRODUCT_NAME@";
+inline constexpr wchar_t kProductVersion[] = L"@STRATOCAM_VERSION@";

@@ -1,0 +1,4 @@
+LIBRARY "AndroidCamVirtualCamera"
+EXPORTS
+    DllCanUnloadNow
+    DllGetClassObject
