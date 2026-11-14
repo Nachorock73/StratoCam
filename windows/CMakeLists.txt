@@ -59,7 +59,7 @@ target_include_directories(android-cam-tests PRIVATE src "${OPENH264_ROOT}/inclu
 target_compile_definitions(android-cam-tests PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_options(android-cam-tests PRIVATE -static-libgcc -static-libstdc++)
 target_link_directories(android-cam-tests PRIVATE "${OPENH264_ROOT}/lib")
-target_link_libraries(android-cam-tests PRIVATE openh264 ws2_32)
+target_link_libraries(android-cam-tests PRIVATE openh264 ws2_32 advapi32)
 
 add_executable(stratocam-loopback-diagnostic
     tools/LoopbackCapture.cpp

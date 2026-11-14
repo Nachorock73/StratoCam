@@ -11,6 +11,7 @@
 #include "VideoTransport.h"
 #include "VirtualCameraFramePublisher.h"
 #include "WasapiAudioCapture.h"
+#include "SessionSettings.h"
 
 #include <commctrl.h>
 
@@ -40,6 +41,8 @@ private:
     bool ValidateRecordingFolder(std::string& error) const;
     void UpdateRecordingFolderLabel();
     void SelectAudioInput(int selection);
+    void LoadSessionPreferences();
+    void SaveSessionPreferences();
     void ExportLatency();
     void ApplyCapabilities();
     void UpdateStatusPanel();
@@ -126,6 +129,8 @@ private:
     std::mutex stateMutex_;
     CameraCapabilities capabilities_;
     CameraState state_;
+    bool cameraStateAvailable_{};
+    SessionSettings sessionSettings_;
     StreamInfo streamInfo_;
     std::string latestStatus_{"Starting"};
     std::atomic<bool> closing_{false};

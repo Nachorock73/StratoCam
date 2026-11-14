@@ -4,10 +4,10 @@ Use your Android phone as a USB camera for Windows. StratoCam provides a live pr
 
 ## Download
 
-[**Download StratoCam for Windows and Android — v0.5.3**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.3)
+[**Download StratoCam for Windows and Android — v0.5.4**](https://github.com/Nachorock73/StratoCam/releases/tag/v0.5.4)
 
-- **Windows:** `StratoCam-Setup-v0.5.3.exe`
-- **Android:** `StratoCam-Android-v0.5.3.apk`
+- **Windows:** `StratoCam-Setup-v0.5.4.exe`
+- **Android:** `StratoCam-Android-v0.5.4.apk`
 - **Download integrity:** `SHA256SUMS.txt`
 
 You do not need development tools or registration commands to use StratoCam.
@@ -55,6 +55,8 @@ Restart applications that were already displaying a camera list when StratoCam w
 
 Choose resolution, orientation, and audio input before recording. Use **Stop REC** to finish the file.
 
+Session settings are saved locally for your Windows account when you close StratoCam and restored next time: resolution, orientation, scale, audio input, Audio Sync Offset, and independent exposure, focus, white balance, and zoom settings. Camera values are checked against the connected device's capabilities before being reapplied. An unavailable audio input falls back to No audio while retaining the preferred device for a later session. Recording never starts automatically.
+
 ## OBS
 
 OBS integration is installed automatically. Restart OBS Studio 32.2.2 x64 and add the **StratoCam** source. You can also select the StratoCam webcam as a video capture device.
@@ -67,7 +69,7 @@ OBS integration is installed automatically. Restart OBS Studio 32.2.2 x64 and ad
 - 1080p30, 4K30, and manual controls depend on the camera and device capabilities.
 - Media Foundation/D3D11 hardware decoding with OpenH264 software fallback.
 
-**Version 0.5.3 is under development.** Device compatibility varies, and a visual issue when maximizing the window remains open. The current camera selection uses camera ID `0`; a universal lens selector is not implemented. The Windows installer is not Authenticode-signed, so Windows may display an unknown-publisher warning. The Android APK is signed.
+**Version 0.5.4 is under development.** Device compatibility varies, and a visual issue when maximizing the window remains open. The current camera selection uses camera ID `0`; a universal lens selector is not implemented. The Windows installer is not Authenticode-signed, so Windows may display an unknown-publisher warning. The Android APK is signed.
 
 Android audio capture, HEVC, and high-frame-rate modes are not included.
 

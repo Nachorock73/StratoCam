@@ -1,4 +1,5 @@
 #include "ControlClient.h"
+#include "SessionSettings.h"
 #include "DeviceDiscoveryRetry.h"
 #include "DecoderAccessUnitQueue.h"
 #include "Metrics.h"
@@ -23,6 +24,52 @@ void Require(bool condition, const char* message) {
 
 int main() {
     try {
+        SessionSettings session;
+        session.videoMode = 1;
+        session.orientation = 5;
+        session.scale = 1;
+        session.audioOffsetMs = -145;
+        session.audioDeviceId = "endpoint-\\device-\"input\"";
+        session.hasCameraState = true;
+        session.camera = {false, 640, 8'000'000, true, 2.5, false, 1.4, 2.2, 1.75};
+        const auto restoredSession = DecodeSessionSettings(EncodeSessionSettings(session));
+        Require(restoredSession && restoredSession->videoMode == 1 && restoredSession->orientation == 5 &&
+                restoredSession->scale == 1 && restoredSession->audioOffsetMs == -145 &&
+                restoredSession->audioDeviceId == session.audioDeviceId && restoredSession->hasCameraState,
+                "session settings round-trip preserves UI and stable audio endpoint identity");
+        Require(!restoredSession->camera.autoExposure && restoredSession->camera.autoFocus &&
+                !restoredSession->camera.autoWhiteBalance && restoredSession->camera.iso == 640 &&
+                restoredSession->camera.exposureNs == 8'000'000 && restoredSession->camera.zoom == 1.75 &&
+                restoredSession->camera.redGain == 1.4 && restoredSession->camera.blueGain == 2.2,
+                "session settings preserve independent AE/AF/AWB modes and manual values");
+        Require(!DecodeSessionSettings("{}").has_value() &&
+                !DecodeSessionSettings("{\"schema\":999}").has_value(),
+                "missing and unsupported preference schemas use application defaults");
+        const auto damaged = DecodeSessionSettings(
+            "{\"schema\":1,\"videoMode\":99,\"orientation\":-9,\"scale\":1e300,\"audioOffsetMs\":5001,\"zoom\":1e999}");
+        Require(damaged && damaged->videoMode == 0 && damaged->orientation == 0 && damaged->scale == 0 &&
+                damaged->audioOffsetMs == 0 && damaged->camera.zoom == 1.0,
+                "invalid saved values cannot become unsafe indices or non-finite camera parameters");
+        CameraCapabilities restoreCaps;
+        restoreCaps.manualExposure = true;
+        restoreCaps.manualFocus = false;
+        restoreCaps.manualWhiteBalance = true;
+        restoreCaps.isoMin = 100; restoreCaps.isoMax = 400;
+        restoreCaps.exposureMinNs = 1000; restoreCaps.exposureMaxNs = 20'000'000;
+        restoreCaps.focusMax = 0; restoreCaps.zoomMin = 1; restoreCaps.zoomMax = 1.5;
+        auto limited = session.camera;
+        limited.autoFocus = false;
+        limited.exposureNs = 30'000'000;
+        limited = RestoreSupportedCameraState(limited, restoreCaps);
+        Require(limited.iso == 400 && limited.exposureNs == 20'000'000 && limited.autoFocus &&
+                !limited.autoExposure && !limited.autoWhiteBalance && limited.focusDistance == 0 && limited.zoom == 1.5,
+                "restoring to different camera capabilities clamps values and preserves independent supported modes");
+        const std::wstring testKey = L"Software\\StratoCam\\Tests\\Session-" + std::to_wstring(GetCurrentProcessId());
+        Require(SaveSessionSettings(session, testKey.c_str()), "save preference snapshot in the per-user registry");
+        const auto registrySession = LoadSessionSettings(testKey.c_str());
+        RegDeleteKeyW(HKEY_CURRENT_USER, testKey.c_str());
+        Require(registrySession && EncodeSessionSettings(*registrySession) == EncodeSessionSettings(session),
+                "registry persistence reloads the complete snapshot without loss");
         Require(!DeviceDiscoveryRetryDue(true, false, false, 2999, 3000),
                 "USB discovery waits for its retry deadline");
         Require(DeviceDiscoveryRetryDue(true, false, false, 3000, 3000),

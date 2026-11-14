@@ -279,6 +279,7 @@ bool AppWindow::OnCreate() {
         window_, nullptr, instance_, nullptr);
     SendMessageW(previewPlaceholder_, WM_SETFONT, reinterpret_cast<WPARAM>(bodyFont_), FALSE);
     PipelineDiagnostics::Reset(adb_.DiagnosticsDirectory() / "windows-pipeline-diagnostics.log");
+    LoadSessionPreferences();
     SetTimer(window_, 1, 500, nullptr);
     orientationThread_ = std::thread(&AppWindow::PollOrientation, this);
     focusThread_ = std::thread(&AppWindow::PollFocusStatus, this);
@@ -584,12 +585,25 @@ void AppWindow::BeginConnect() {
             PostStatus(error); connecting_.store(false); return;
         }
         if (closing_.load() || !connectionRequested_.load()) { connecting_.store(false); return; }
+        std::optional<CameraState> previous;
+        { std::lock_guard lock(stateMutex_); if (cameraStateAvailable_) previous = state_; }
+        if (previous) {
+            const auto requested = RestoreSupportedCameraState(*previous, capabilities);
+            bool restored = true;
+            restored = controls_.SetExposure(requested.autoExposure, requested.iso, requested.exposureNs, state, error) && restored;
+            restored = controls_.SetFocus(requested.autoFocus, requested.focusDistance, state, error) && restored;
+            restored = controls_.SetWhiteBalance(requested.autoWhiteBalance, requested.redGain, requested.blueGain, state, error) && restored;
+            restored = controls_.SetZoom(requested.zoom, state, error) && restored;
+            PipelineDiagnostics::Log("preferences", restored ? "Camera settings restored" : "Camera settings partially restored: " + error);
+            if (!restored) PostStatus("Some saved camera settings could not be restored: " + error);
+        }
         connected_.store(true);
         PipelineDiagnostics::Log("lifecycle", "Capabilities ready; starting decoder");
         {
             std::lock_guard lock(stateMutex_);
             capabilities_ = capabilities;
             state_ = state;
+            cameraStateAvailable_ = true;
         }
         PostMessageW(window_, WM_APP_CONNECTED, 0, 0);
         latency_.Reset();
@@ -692,6 +706,49 @@ void AppWindow::LoadRecordingFolderPreference() {
         std::error_code ignored;
         std::filesystem::create_directories(recordingFolder_, ignored);
     }
+}
+
+void AppWindow::LoadSessionPreferences() {
+    const auto saved = LoadSessionSettings();
+    if (!saved) return;
+    sessionSettings_ = *saved;
+    modeSelection_.store(saved->videoMode);
+    orientationSelection_.store(saved->orientation);
+    scaleSelection_.store(saved->scale);
+    SendMessageW(modeCombo_, CB_SETCURSEL, saved->videoMode, 0);
+    SendMessageW(orientationCombo_, CB_SETCURSEL, saved->orientation, 0);
+    SendMessageW(scaleCombo_, CB_SETCURSEL, saved->scale, 0);
+    SetWindowTextW(audioOffsetEdit_, std::to_wstring(saved->audioOffsetMs).c_str());
+    { std::lock_guard lock(stateMutex_); state_ = saved->camera; cameraStateAvailable_ = saved->hasCameraState; }
+    if (!saved->audioDeviceId.empty()) {
+        const auto device = std::find_if(audioDevices_.begin(), audioDevices_.end(), [&](const auto& candidate) {
+            return WideToUtf8(candidate.id) == saved->audioDeviceId;
+        });
+        if (device != audioDevices_.end()) {
+            const int selection = static_cast<int>(std::distance(audioDevices_.begin(), device)) + 1;
+            SendMessageW(audioInputCombo_, CB_SETCURSEL, selection, 0);
+            SelectAudioInput(selection);
+        } else PostStatus("Saved audio input is unavailable; No audio selected");
+    }
+    PipelineDiagnostics::Log("preferences", "Session settings loaded");
+}
+
+void AppWindow::SaveSessionPreferences() {
+    sessionSettings_.videoMode = modeSelection_.load();
+    sessionSettings_.orientation = orientationSelection_.load();
+    sessionSettings_.scale = scaleSelection_.load();
+    wchar_t text[32]{};
+    GetWindowTextW(audioOffsetEdit_, text, static_cast<int>(std::size(text)));
+    wchar_t* end = nullptr;
+    const long offset = std::wcstol(text, &end, 10);
+    if (end != text && *end == L'\0' && offset >= -5000 && offset <= 5000)
+        sessionSettings_.audioOffsetMs = static_cast<int>(offset);
+    { std::lock_guard lock(stateMutex_);
+      sessionSettings_.camera = state_; sessionSettings_.hasCameraState = cameraStateAvailable_; }
+    PipelineDiagnostics::Log("preferences", SaveSessionSettings(sessionSettings_)
+        ? "Session settings saved" : "Could not save session settings");
+    std::string error;
+    if (!SaveRecordingFolderPreference(error)) PipelineDiagnostics::Log("preferences", error);
 }
 
 bool AppWindow::SaveRecordingFolderPreference(std::string& error) const {
@@ -1198,6 +1255,15 @@ void AppWindow::HandleSlider(HWND slider, int notification) {
 }
 
 void AppWindow::HandleCommand(int id, int notification) {
+    if (id == ID_AUDIO_OFFSET && notification == EN_CHANGE) {
+        wchar_t text[32]{};
+        GetWindowTextW(audioOffsetEdit_, text, static_cast<int>(std::size(text)));
+        wchar_t* end = nullptr;
+        const long offset = std::wcstol(text, &end, 10);
+        if (end != text && *end == L'\0' && offset >= -5000 && offset <= 5000)
+            sessionSettings_.audioOffsetMs = static_cast<int>(offset);
+        return;
+    }
     if (id == ID_MODE && notification == CBN_SELCHANGE) {
         if (recorder_.Snapshot().Active()) {
             SendMessageW(modeCombo_, CB_SETCURSEL, modeSelection_.load(), 0);
@@ -1211,7 +1277,10 @@ void AppWindow::HandleCommand(int id, int notification) {
         return;
     }
     if (id == ID_AUDIO_INPUT && notification == CBN_SELCHANGE) {
-        SelectAudioInput(static_cast<int>(SendMessageW(audioInputCombo_, CB_GETCURSEL, 0, 0)));
+        const int selected = static_cast<int>(SendMessageW(audioInputCombo_, CB_GETCURSEL, 0, 0));
+        if (!recorder_.Snapshot().Active() && selected >= 0 && selected <= static_cast<int>(audioDevices_.size()))
+            sessionSettings_.audioDeviceId = selected == 0 ? "" : WideToUtf8(audioDevices_[selected - 1].id);
+        SelectAudioInput(selected);
         return;
     }
     if (id == ID_ORIENTATION && notification == CBN_SELCHANGE) {
@@ -1283,6 +1352,7 @@ void AppWindow::OnDestroy() {
     if (focusThread_.joinable()) focusThread_.join();
     if (deviceStatusThread_.joinable()) deviceStatusThread_.join();
     if (displayPowerThread_.joinable()) displayPowerThread_.join();
+    SaveSessionPreferences();
     ExportLatency();
     obsPublisher_.Shutdown();
     virtualCameraPublisher_.Shutdown();
@@ -1323,6 +1393,7 @@ LRESULT CALLBACK AppWindow::WindowProc(HWND window, UINT message, WPARAM wParam,
             app->Layout(LOWORD(lParam), HIWORD(lParam));
             return 0;
         case WM_COMMAND: app->HandleCommand(LOWORD(wParam), HIWORD(wParam)); return 0;
+        case WM_QUERYENDSESSION: app->SaveSessionPreferences(); return TRUE;
         case WM_HSCROLL: app->HandleSlider(reinterpret_cast<HWND>(lParam), LOWORD(wParam)); return 0;
         case WM_TIMER:
             if (DeviceDiscoveryRetryDue(app->connectionRequested_.load(), app->connecting_.load(),
