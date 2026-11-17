@@ -243,7 +243,9 @@ int main() {
         Require(ResolvePreviewRotation(PreviewOrientationMode::Rotate270, 90, 0, 1920, 1080) == 270,
                 "manual 270 rotation");
         for (const auto [clientWidth, clientHeight] : {
-                 std::pair{1080, 800}, std::pair{1460, 920}, std::pair{1920, 1080},
+                 std::pair{640, 360}, std::pair{720, 480}, std::pair{800, 600},
+                 std::pair{900, 600}, std::pair{900, 480}, std::pair{1080, 800},
+                 std::pair{1460, 920}, std::pair{1920, 1080},
                  std::pair{2560, 1080}, std::pair{1200, 1440}}) {
             for (const int rotation : {0, 90, 180, 270}) {
                 const auto layout = CalculateWindowPreviewLayout(
@@ -256,6 +258,10 @@ int main() {
                         "preview container never crosses toolbar");
                 Require(layout.toolbarY + 48 <= layout.metricsY,
                         "toolbar and metrics remain ordered");
+                Require(layout.metricsY + layout.metricsHeight <= clientHeight - 20,
+                        "responsive metrics fit below the preview on short displays");
+                Require(layout.panelX + layout.panelWidth <= clientWidth - 20,
+                        "controls panel fits inside the client area");
             }
         }
         for (const auto [viewWidth, viewHeight] : {

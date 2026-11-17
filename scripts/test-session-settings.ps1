@@ -18,7 +18,13 @@ public static class SessionTestWindows {
     public delegate bool EnumProc(IntPtr hwnd, IntPtr value);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc callback, IntPtr value);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-    [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll", EntryPoint="GetDlgItem")] private static extern IntPtr NativeGetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string type, string title);
+    public static IntPtr GetDlgItem(IntPtr hwnd, int id) {
+        IntPtr result = NativeGetDlgItem(hwnd,id);
+        if (result != IntPtr.Zero) return result;
+        return NativeGetDlgItem(FindWindowEx(hwnd,IntPtr.Zero,"StratoCamControlsPanel",null),id);
+    }
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern bool SetWindowText(IntPtr hwnd, string value);

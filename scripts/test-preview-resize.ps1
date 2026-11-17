@@ -72,9 +72,12 @@ function Assert-PreviewBounds([IntPtr]$Window, [string]$State) {
     [void][StratoCamResizeNative]::MapWindowPoints($preview, $Window, [ref]$origin, 1)
     $previewRight = $origin.X + $previewClient.Right
     $previewBottom = $origin.Y + $previewClient.Bottom
-    $panelX = [Math]::Max(680, $client.Right - 380)
-    if ($origin.X -lt 20 -or $origin.Y -lt 84 -or $previewRight -gt ($panelX - 20) -or
-        $previewBottom -gt ($client.Bottom - 148)) {
+    $panel = [StratoCamResizeNative]::FindWindowEx($Window, [IntPtr]::Zero, 'StratoCamControlsPanel', $null)
+    $panelOrigin = New-Object StratoCamResizeNative+POINT
+    [void][StratoCamResizeNative]::MapWindowPoints($panel, $Window, [ref]$panelOrigin, 1)
+    $panelX = $panelOrigin.X
+    if ($panel -eq [IntPtr]::Zero -or $origin.X -lt 0 -or $origin.Y -lt $panelOrigin.Y -or
+        $previewRight -gt $panelX -or $previewBottom -gt $client.Bottom) {
         throw "Preview escaped its container at $State`: preview=$($origin.X),$($origin.Y),$previewRight,$previewBottom client=$($client.Right)x$($client.Bottom) panelX=$panelX"
     }
 }

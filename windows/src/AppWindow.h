@@ -24,11 +24,15 @@ public:
 
     static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK PreviewProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK PanelProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
     bool OnCreate();
     void OnDestroy();
     void Layout(int width, int height);
+    void UpdateFonts();
+    void ScrollPanel(int position);
+    int Px(int value) const { return MulDiv(value, dpi_, 96); }
     void PaintBackground(HDC dc);
     bool DrawButton(const DRAWITEMSTRUCT& item);
     LRESULT DrawControl(NMCUSTOMDRAW* customDraw);
@@ -71,6 +75,10 @@ private:
     HINSTANCE instance_{};
     HWND window_{};
     HWND preview_{};
+    HWND controlsPanel_{};
+    UINT dpi_{96};
+    int panelScroll_{};
+    int panelScrollMax_{};
     HWND title_{};
     HWND subtitle_{};
     HWND connectionStatus_{};

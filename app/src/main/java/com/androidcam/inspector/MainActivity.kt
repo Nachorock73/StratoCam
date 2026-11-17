@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
@@ -186,6 +187,26 @@ class MainActivity : Activity(), CameraController.Listener {
 
     private fun createContentView(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        // Keep the video edge-to-edge, but place every interactive overlay inside safe insets.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        }
+        val overlay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        overlay.setOnApplyWindowInsetsListener { view, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            }
+            insets
+        }
         previewView = AutoFitTextureView(this).apply {
             surfaceTextureListener = surfaceListener
         }
@@ -202,15 +223,16 @@ class MainActivity : Activity(), CameraController.Listener {
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.argb(170, 10, 18, 24))
             textSize = 14f
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setPadding(dp(12), dp(10), dp(12), dp(10))
             text = getString(R.string.preview_waiting)
         }
-        root.addView(
+        overlay.addView(
             statusView,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
@@ -221,14 +243,24 @@ class MainActivity : Activity(), CameraController.Listener {
                 controller.updateControls(state)
             }
         }
-        root.addView(
+        // The scrollable controls get only the space left above the measured action bar.
+        // This also handles landscape, larger text, cutouts and three-button navigation.
+        val controlsArea = object : FrameLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                controlsView.layoutParams.height = minOf(dp(500), View.MeasureSpec.getSize(heightMeasureSpec))
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        controlsArea.addView(
             controlsView,
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 dp(500),
                 Gravity.BOTTOM
-            ).apply { bottomMargin = dp(58) }
+            )
         )
+        overlay.addView(controlsArea, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -257,14 +289,16 @@ class MainActivity : Activity(), CameraController.Listener {
                 startActivity(Intent(this@MainActivity, CapabilityReportActivity::class.java))
             }
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        root.addView(
+        overlay.addView(
             actions,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
+        root.addView(overlay, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        overlay.requestApplyInsets()
         return root
     }
 

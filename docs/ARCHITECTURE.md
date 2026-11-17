@@ -9,3 +9,5 @@ Control uses JSON Lines on local port 27183; video uses port 27184. ADB forwards
 The webcam is registered as StratoCam through Media Foundation for all Windows users. The elevated installer configures its COM registration, shared frame file, and permissions. Uninstall removes this integration. Historical internal identifiers remain for compatibility and are not product display names.
 
 Exposure, focus, white balance, and zoom capabilities are queried from Android. The current camera selection uses camera ID 0. Available resolutions and controls depend on device capabilities.
+
+See [adaptive UI layout](UI_LAYOUT.md) for Windows DPI handling, the scrollable controls panel, and Android system-bar insets. These UI changes preserve the existing transport and recording paths.

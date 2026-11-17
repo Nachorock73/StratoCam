@@ -12,6 +12,7 @@
 namespace {
 constexpr wchar_t kWindowClass[] = L"AndroidCamMainWindow";
 constexpr wchar_t kPreviewClass[] = L"AndroidCamPreviewWindow";
+constexpr wchar_t kPanelClass[] = L"StratoCamControlsPanel";
 constexpr UINT WM_APP_STATUS = WM_APP + 50;
 constexpr UINT WM_APP_CONNECTED = WM_APP + 51;
 constexpr UINT WM_APP_STREAM_INFO = WM_APP + 52;
@@ -134,6 +135,11 @@ bool AppWindow::Create(HINSTANCE instance, int showCommand) {
     previewClass.hbrBackground = static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
     previewClass.lpszClassName = kPreviewClass;
     RegisterClassExW(&previewClass);
+    WNDCLASSEXW panelClass = previewClass;
+    panelClass.lpfnWndProc = PanelProc;
+    panelClass.hbrBackground = panelBrush_;
+    panelClass.lpszClassName = kPanelClass;
+    RegisterClassExW(&panelClass);
 
     WNDCLASSEXW mainClass{};
     mainClass.cbSize = sizeof(mainClass);
@@ -145,8 +151,12 @@ bool AppWindow::Create(HINSTANCE instance, int showCommand) {
     mainClass.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_STRATOCAM));
     mainClass.hIconSm = LoadIconW(instance, MAKEINTRESOURCEW(IDI_STRATOCAM));
     if (!RegisterClassExW(&mainClass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
+    dpi_ = GetDpiForSystem();
+    RECT work{}; SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     window_ = CreateWindowExW(0, kWindowClass, kProductName,
-                              WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 1460, 920,
+                              WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
+                              std::min(Px(1460), static_cast<int>(work.right - work.left)),
+                              std::min(Px(920), static_cast<int>(work.bottom - work.top)),
                               nullptr, nullptr, instance, this);
     if (!window_) return false;
     const BOOL dark = TRUE;
@@ -176,16 +186,38 @@ void AppWindow::StyleControl(HWND control, HFONT font) {
     SetWindowTheme(control, L"DarkMode_Explorer", nullptr);
 }
 
+void AppWindow::UpdateFonts() {
+    const HFONT old[] = {titleFont_, subtitleFont_, sectionFont_, bodyFont_, metricFont_};
+    titleFont_ = MakeFont(Px(25), FW_SEMIBOLD, L"Segoe UI Variable Display");
+    subtitleFont_ = MakeFont(Px(12), FW_NORMAL);
+    sectionFont_ = MakeFont(Px(13), FW_SEMIBOLD);
+    bodyFont_ = MakeFont(Px(12), FW_NORMAL);
+    metricFont_ = MakeFont(Px(11), FW_SEMIBOLD);
+    struct Fonts { const HFONT* old; HFONT current[5]; int comboHeight; } fonts{
+        old, {titleFont_, subtitleFont_, sectionFont_, bodyFont_, metricFont_}, Px(24)};
+    EnumChildWindows(window_, [](HWND control, LPARAM data) -> BOOL {
+        const auto& fonts = *reinterpret_cast<Fonts*>(data);
+        const auto previous = reinterpret_cast<HFONT>(SendMessageW(control, WM_GETFONT, 0, 0));
+        for (int i = 0; i < 5; ++i) if (previous && previous == fonts.old[i]) {
+            SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(fonts.current[i]), FALSE); break;
+        }
+        wchar_t type[32]{}; GetClassNameW(control, type, 32);
+        if (wcscmp(type, L"ComboBox") == 0) {
+            SendMessageW(control, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), fonts.comboHeight);
+            SendMessageW(control, CB_SETITEMHEIGHT, 0, fonts.comboHeight);
+        }
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&fonts));
+    for (HFONT font : old) if (font) DeleteObject(font);
+}
+
 bool AppWindow::OnCreate() {
+    dpi_ = GetDpiForWindow(window_);
     std::string obsError;
     if (!obsPublisher_.Initialize(obsError)) latestStatus_ = obsError;
     std::string virtualCameraError;
     if (!virtualCameraPublisher_.Initialize(virtualCameraError) && latestStatus_.empty()) latestStatus_ = virtualCameraError;
-    titleFont_ = MakeFont(25, FW_SEMIBOLD, L"Segoe UI Variable Display");
-    subtitleFont_ = MakeFont(12, FW_NORMAL);
-    sectionFont_ = MakeFont(13, FW_SEMIBOLD);
-    bodyFont_ = MakeFont(12, FW_NORMAL);
-    metricFont_ = MakeFont(11, FW_SEMIBOLD);
+    UpdateFonts();
 
     preview_ = CreateWindowExW(0, kPreviewClass, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 10, 10,
                                window_, nullptr, instance_, this);
@@ -268,6 +300,25 @@ bool AppWindow::OnCreate() {
     metricLatency_ = AddLabel(L"DECODE / PROC   —", 0, metricFont_);
     metricDrops_ = AddLabel(L"TRANSPORT / DROPS   —", 0, metricFont_);
 
+    controlsPanel_ = CreateWindowExW(0, kPanelClass, L"", WS_CHILD | WS_VISIBLE |
+        WS_VSCROLL | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0, 0, 10, 10,
+        window_, nullptr, instance_, this);
+    for (HWND control : {audioTitle_, audioInputCombo_, audioLevel_, audioOffsetLabel_, audioOffsetEdit_,
+            recordingFolderLabel_, recordingFolderButton_, exposureTitle_, aeCheck_, isoValue_, isoSlider_,
+            shutterValue_, shutterSlider_, focusTitle_, afCheck_, focusValue_, focusSlider_, resumeFocusButton_,
+            wbTitle_, awbCheck_, redValue_, redSlider_, blueValue_, blueSlider_, zoomTitle_, zoomValue_, zoomSlider_,
+            GetDlgItem(window_, ID_ZOOM_1), GetDlgItem(window_, ID_ZOOM_15), GetDlgItem(window_, ID_ZOOM_2),
+            GetDlgItem(window_, ID_RESET)}) {
+        SetParent(control, controlsPanel_);
+        SetWindowSubclass(control, [](HWND child, UINT message, WPARAM wParam, LPARAM lParam,
+                                     UINT_PTR, DWORD_PTR) -> LRESULT {
+            if (message == WM_MOUSEWHEEL)
+                return SendMessageW(GetParent(child), message, wParam, lParam);
+            return DefSubclassProc(child, message, wParam, lParam);
+        }, 1, 0);
+    }
+    UpdateFonts();
+
     for (HWND slider : {isoSlider_, shutterSlider_, focusSlider_, redSlider_, blueSlider_, zoomSlider_})
         SendMessageW(slider, TBM_SETRANGE, TRUE, MAKELPARAM(0, 1000));
     for (HWND toggle : {aeCheck_, afCheck_, awbCheck_}) SendMessageW(toggle, BM_SETCHECK, BST_CHECKED, 0);
@@ -291,61 +342,87 @@ bool AppWindow::OnCreate() {
 
 void AppWindow::Layout(int width, int height) {
     constexpr int margin = 20;
-    constexpr int headerHeight = 72;
-    constexpr int panelWidth = 360;
+    width = MulDiv(width, 96, dpi_);
+    height = MulDiv(height, 96, dpi_);
+    StreamInfo info;
+    { std::lock_guard lock(stateMutex_); info = streamInfo_; }
+    const auto previewLayout = CalculateWindowPreviewLayout(width, height,
+        info.width > 0 ? info.width : 1920, info.height > 0 ? info.height : 1080,
+        effectiveRotationDegrees_.load());
+    const int headerHeight = previewLayout.headerHeight;
+    const int panelWidth = previewLayout.panelWidth;
+    const int panelX = previewLayout.panelX;
+    const int panelTop = headerHeight + 12;
+    const int panelHeight = std::max(1, height - panelTop - margin);
+    // Content is laid out in logical pixels; only the panel scrolls on short displays.
+    constexpr int panelContentHeight = 845;
+    panelScrollMax_ = std::max(0, panelContentHeight - panelHeight);
+    panelScroll_ = std::clamp(panelScroll_, 0, panelScrollMax_);
+    SCROLLINFO scroll{};
+    scroll.cbSize = sizeof(scroll); scroll.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    scroll.nMin = 0; scroll.nMax = panelContentHeight - 1;
+    scroll.nPage = panelHeight; scroll.nPos = panelScroll_;
+    SetScrollInfo(controlsPanel_, SB_VERT, &scroll, TRUE);
     renderer_.SetResizeInProgress(true);
-    SendMessageW(window_, WM_SETREDRAW, FALSE, 0);
+    const bool wasVisible = IsWindowVisible(window_);
+    if (wasVisible) SendMessageW(window_, WM_SETREDRAW, FALSE, 0);
     struct ChildPlacement { HWND control; int x; int y; int width; int height; };
     std::vector<ChildPlacement> placements;
     placements.reserve(40);
-    const auto move = [&placements](HWND control, int x, int y, int controlWidth, int controlHeight) {
-        placements.push_back({control, x, y, controlWidth, controlHeight});
+    const auto move = [&](HWND control, int x, int y, int controlWidth, int controlHeight) {
+        if (GetParent(control) == controlsPanel_) {
+            x -= panelX; y -= panelTop + panelScroll_;
+        }
+        placements.push_back({control, Px(x), Px(y), Px(controlWidth), Px(controlHeight)});
     };
+    move(controlsPanel_, panelX, panelTop, panelWidth, panelHeight);
 
     move(title_, margin, 12, 260, 30);
-    move(subtitle_, margin, 43, 300, 20);
-    move(modeCombo_, 300, 17, 205, 200);
-    move(batteryStatus_, 300, 48, std::max(180, width - 1020), 20);
-    move(connectionStatus_, width - 720, 23, 145, 26);
-    move(streamStatus_, width - 568, 23, 112, 26);
-    move(recordButton_, width - 446, 17, 124, 36);
-    move(startButton_, width - 312, 17, 126, 36);
-    move(stopButton_, width - 176, 17, 126, 36);
-    move(recordStatus_, width - 720, 49, 670, 20);
-
-    StreamInfo info;
-    { std::lock_guard lock(stateMutex_); info = streamInfo_; }
-    const int sourceWidth = info.width > 0 ? info.width : 1920;
-    const int sourceHeight = info.height > 0 ? info.height : 1080;
-    const auto previewLayout = CalculateWindowPreviewLayout(
-        width, height, sourceWidth, sourceHeight, effectiveRotationDegrees_.load());
+    move(subtitle_, margin, 43, width < 840 ? 0 : 300, 20);
+    const bool compact = headerHeight > 72;
+    move(modeCombo_, compact ? margin : 300, compact ? 70 : 17, 205, 200);
+    move(batteryStatus_, width < 840 ? margin : (compact ? width - 520 : 300), compact ? 43 : 48,
+         width < 840 ? width - 40 : (compact ? 470 : std::max(180, width - 1020)), 20);
+    move(connectionStatus_, width - (compact ? 340 : 720), compact ? 15 : 23, 145, 26);
+    move(streamStatus_, width - (compact ? 176 : 568), compact ? 15 : 23, 126, 26);
+    move(recordButton_, width - (width < 800 ? 310 : 446), compact ? 68 : 17, width < 800 ? 90 : 124, 36);
+    move(startButton_, width - (width < 800 ? 210 : 312), compact ? 68 : 17, width < 800 ? 90 : 126, 36);
+    move(stopButton_, width - (width < 800 ? 110 : 176), compact ? 68 : 17, width < 800 ? 90 : 126, 36);
+    move(recordStatus_, compact ? 250 : width - 720, compact ? 106 : 49,
+         compact ? width - 300 : 670, compact && headerHeight < 128 ? 0 : 20);
     PipelineDiagnostics::Log("resize", "layout client=" + std::to_string(width) + "x" +
         std::to_string(height) + " preview=" + std::to_string(previewLayout.previewX) + "," +
         std::to_string(previewLayout.previewY) + "," + std::to_string(previewLayout.previewWidth) +
         "x" + std::to_string(previewLayout.previewHeight) + " panelX=" +
         std::to_string(previewLayout.panelX));
-    const int panelX = previewLayout.panelX;
     const int leftWidth = previewLayout.leftWidth;
     move(preview_, previewLayout.previewX, previewLayout.previewY,
          previewLayout.previewWidth, previewLayout.previewHeight);
     if (previewPlaceholder_) move(previewPlaceholder_, previewLayout.previewX, previewLayout.previewY,
          previewLayout.previewWidth, previewLayout.previewHeight);
     const int toolbarY = previewLayout.toolbarY;
-    move(orientationValue_, margin + 10, toolbarY + 12, 190, 24);
-    move(orientationCombo_, margin + 200, toolbarY + 7, 170, 220);
-    move(scaleCombo_, margin + 380, toolbarY + 7, 170, 150);
-    move(status_, margin + 565, toolbarY + 12, std::max(80, leftWidth - 575), 22);
+    const bool narrowPreview = leftWidth < 720;
+    move(orientationValue_, margin + 10, toolbarY + 12, narrowPreview ? 64 : 190, 24);
+    move(orientationCombo_, margin + (narrowPreview ? 80 : 200), toolbarY + 7,
+         narrowPreview ? 150 : 170, 220);
+    move(scaleCombo_, margin + (narrowPreview ? 240 : 380), toolbarY + 7,
+         narrowPreview ? std::min(160, leftWidth - 250) : 170, 150);
+    move(status_, margin + (narrowPreview ? 10 : 565), toolbarY + (narrowPreview ? 47 : 12),
+         narrowPreview ? leftWidth - 20 : leftWidth - 575,
+         narrowPreview && previewLayout.toolbarHeight < 76 ? 0 : 22);
 
     const int metricsY = previewLayout.metricsY;
-    const int metricWidth = std::max(90, (leftWidth - 32) / 5);
-    int metricX = margin + 10;
+    const int columns = narrowPreview ? 3 : 5;
+    const int metricWidth = (leftWidth - 20) / columns;
+    int metricIndex = 0;
     for (HWND metric : {metricResolution_, metricFps_, metricBitrate_, metricLatency_, metricDrops_}) {
-        move(metric, metricX, metricsY + 17, metricWidth - 8, 26);
-        metricX += metricWidth;
+        move(metric, margin + 10 + (metricIndex % columns) * metricWidth,
+             metricsY + 17 + (metricIndex / columns) * 34, metricWidth - 8, 26);
+        ++metricIndex;
     }
 
     const int x = panelX + 22;
-    const int content = panelWidth - 44;
+    const int content = panelWidth - 44 - MulDiv(GetSystemMetricsForDpi(SM_CXVSCROLL, dpi_), 96, dpi_);
     int y = headerHeight + 30;
     auto section = [&](HWND title, HWND toggle) {
         move(title, x, y, content - 94, 25);
@@ -372,29 +449,35 @@ void AppWindow::Layout(int width, int height) {
     move(zoomValue_, x + content / 2, y, content / 2, 25); y += 29;
     move(zoomSlider_, x, y, content, 26); y += 36;
     const int quickWidth = (content - 16) / 3;
-    move(GetDlgItem(window_, ID_ZOOM_1), x, y, quickWidth, 32);
-    move(GetDlgItem(window_, ID_ZOOM_15), x + quickWidth + 8, y, quickWidth, 32);
-    move(GetDlgItem(window_, ID_ZOOM_2), x + (quickWidth + 8) * 2, y, quickWidth, 32); y += 46;
-    move(GetDlgItem(window_, ID_RESET), x, std::min(y, height - 66), content, 38);
+    move(GetDlgItem(controlsPanel_, ID_ZOOM_1), x, y, quickWidth, 32);
+    move(GetDlgItem(controlsPanel_, ID_ZOOM_15), x + quickWidth + 8, y, quickWidth, 32);
+    move(GetDlgItem(controlsPanel_, ID_ZOOM_2), x + (quickWidth + 8) * 2, y, quickWidth, 32); y += 46;
+    move(GetDlgItem(controlsPanel_, ID_RESET), x, y, content, 38);
 
-    HDWP deferred = BeginDeferWindowPos(static_cast<int>(placements.size()));
-    if (deferred) {
-        for (const auto& placement : placements) {
-            deferred = DeferWindowPos(deferred, placement.control, nullptr,
-                                      placement.x, placement.y, placement.width, placement.height,
-                                      SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOREDRAW);
-            if (!deferred) break;
+    const auto positionGroup = [&](HWND parent) {
+        HDWP deferred = BeginDeferWindowPos(static_cast<int>(placements.size()));
+        if (deferred) {
+            for (const auto& placement : placements) {
+                if (GetParent(placement.control) != parent) continue;
+                deferred = DeferWindowPos(deferred, placement.control, nullptr,
+                                          placement.x, placement.y, placement.width, placement.height,
+                                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOREDRAW);
+                if (!deferred) break;
+            }
         }
-    }
-    bool positioned = deferred && EndDeferWindowPos(deferred);
-    if (!positioned) {
-        PipelineDiagnostics::Log("resize", "deferred layout failed; applying no-redraw fallback");
-        for (const auto& placement : placements) {
-            SetWindowPos(placement.control, nullptr, placement.x, placement.y,
-                         placement.width, placement.height,
-                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOREDRAW);
+        bool positioned = deferred && EndDeferWindowPos(deferred);
+        if (!positioned) {
+            PipelineDiagnostics::Log("resize", "deferred layout failed; applying no-redraw fallback");
+            for (const auto& placement : placements) {
+                if (GetParent(placement.control) != parent) continue;
+                SetWindowPos(placement.control, nullptr, placement.x, placement.y,
+                             placement.width, placement.height,
+                             SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOREDRAW);
+            }
         }
-    }
+    };
+    positionGroup(window_);
+    positionGroup(controlsPanel_);
 
     RECT previewClient{};
     GetClientRect(preview_, &previewClient);
@@ -402,7 +485,7 @@ void AppWindow::Layout(int width, int height) {
         std::to_string(previewClient.right) + "x" + std::to_string(previewClient.bottom));
     renderer_.Resize(previewClient.right, previewClient.bottom, false);
     renderer_.SetDestinationRect(0, 0, previewClient.right, previewClient.bottom);
-    SendMessageW(window_, WM_SETREDRAW, TRUE, 0);
+    if (wasVisible) SendMessageW(window_, WM_SETREDRAW, TRUE, 0);
     RedrawWindow(window_, nullptr, nullptr,
                  RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE | RDW_ALLCHILDREN);
     PipelineDiagnostics::Log("resize", "deferred parent/child redraw completed after layout");
@@ -417,14 +500,17 @@ void AppWindow::PaintBackground(HDC dc) {
     FillRect(dc, &client, backgroundBrush_);
     HPEN divider = CreatePen(PS_SOLID, 1, kBorder);
     const auto oldPen = SelectObject(dc, divider);
-    MoveToEx(dc, 20, 71, nullptr); LineTo(dc, client.right - 20, 71);
+    StreamInfo info;
+    { std::lock_guard lock(stateMutex_); info = streamInfo_; }
+    const auto layout = CalculateWindowPreviewLayout(MulDiv(client.right, 96, dpi_),
+        MulDiv(client.bottom, 96, dpi_), info.width, info.height, effectiveRotationDegrees_.load());
+    MoveToEx(dc, Px(20), Px(layout.headerHeight - 1), nullptr);
+    LineTo(dc, client.right - Px(20), Px(layout.headerHeight - 1));
     SelectObject(dc, oldPen); DeleteObject(divider);
 
-    constexpr int margin = 20;
-    constexpr int panelWidth = 360;
-    const int panelX = std::max(680, static_cast<int>(client.right) - panelWidth - margin);
-    RECT panel{panelX, 84, client.right - margin, client.bottom - margin};
-    FillRounded(dc, panel, 18, kPanel, kBorder);
+    const int margin = Px(20);
+    RECT panel{Px(layout.panelX), Px(layout.headerHeight + 12), client.right - margin, client.bottom - margin};
+    FillRounded(dc, panel, Px(18), kPanel, kBorder);
 
     if (preview_) {
         RECT preview{}; GetWindowRect(preview_, &preview);
@@ -433,14 +519,10 @@ void AppWindow::PaintBackground(HDC dc) {
         HBRUSH frame = CreateSolidBrush(kBorder);
         FrameRect(dc, &preview, frame);
         DeleteObject(frame);
-        RECT orientation{}; GetWindowRect(orientationValue_, &orientation);
-        MapWindowPoints(nullptr, window_, reinterpret_cast<POINT*>(&orientation), 2);
-        RECT toolbar{20, orientation.top - 12, panel.left - 20, orientation.bottom + 12};
-        FillRounded(dc, toolbar, 12, kPanel, kBorder);
-        RECT metric{}; GetWindowRect(metricResolution_, &metric);
-        MapWindowPoints(nullptr, window_, reinterpret_cast<POINT*>(&metric), 2);
-        RECT metrics{20, metric.top - 17, panel.left - 20, std::min(client.bottom - margin, metric.bottom + 17)};
-        FillRounded(dc, metrics, 12, kPanel, kBorder);
+        RECT toolbar{margin, Px(layout.toolbarY), panel.left - margin, Px(layout.toolbarY + layout.toolbarHeight)};
+        FillRounded(dc, toolbar, Px(12), kPanel, kBorder);
+        RECT metrics{margin, Px(layout.metricsY), panel.left - margin, Px(layout.metricsY + layout.metricsHeight)};
+        FillRounded(dc, metrics, Px(12), kPanel, kBorder);
     }
 }
 
@@ -1373,7 +1455,23 @@ LRESULT CALLBACK AppWindow::WindowProc(HWND window, UINT message, WPARAM wParam,
         case WM_CREATE: return app->OnCreate() ? 0 : -1;
         case WM_GETMINMAXINFO: {
             auto* limits = reinterpret_cast<MINMAXINFO*>(lParam);
-            limits->ptMinTrackSize = {1080, 800}; return 0;
+            MONITORINFO monitor{}; monitor.cbSize = sizeof(monitor);
+            GetMonitorInfoW(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor);
+            limits->ptMinTrackSize = {
+                std::min(app->Px(720), static_cast<int>(monitor.rcWork.right - monitor.rcWork.left)),
+                std::min(app->Px(480), static_cast<int>(monitor.rcWork.bottom - monitor.rcWork.top))};
+            return 0;
+        }
+        case WM_DPICHANGED: {
+            app->dpi_ = HIWORD(wParam);
+            app->UpdateFonts();
+            const auto& suggested = *reinterpret_cast<RECT*>(lParam);
+            SetWindowPos(window, nullptr, suggested.left, suggested.top,
+                suggested.right - suggested.left, suggested.bottom - suggested.top,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+            RECT client{}; GetClientRect(window, &client);
+            app->Layout(client.right, client.bottom);
+            return 0;
         }
         case WM_WINDOWPOSCHANGING: {
             const auto* position = reinterpret_cast<const WINDOWPOS*>(lParam);
@@ -1395,6 +1493,7 @@ LRESULT CALLBACK AppWindow::WindowProc(HWND window, UINT message, WPARAM wParam,
         case WM_COMMAND: app->HandleCommand(LOWORD(wParam), HIWORD(wParam)); return 0;
         case WM_QUERYENDSESSION: app->SaveSessionPreferences(); return TRUE;
         case WM_HSCROLL: app->HandleSlider(reinterpret_cast<HWND>(lParam), LOWORD(wParam)); return 0;
+        case WM_MOUSEWHEEL: return SendMessageW(app->controlsPanel_, message, wParam, lParam);
         case WM_TIMER:
             if (DeviceDiscoveryRetryDue(app->connectionRequested_.load(), app->connecting_.load(),
                     app->transport_.Running(), GetTickCount64(), app->discoveryRetryAtMs_.load()))
@@ -1430,6 +1529,8 @@ LRESULT CALLBACK AppWindow::WindowProc(HWND window, UINT message, WPARAM wParam,
                 control == app->redValue_ || control == app->blueValue_ || control == app->zoomTitle_ ||
                 control == app->zoomValue_ || control == app->audioTitle_ || control == app->audioLevel_ ||
                 control == app->audioOffsetLabel_ || control == app->recordingFolderLabel_;
+            SetBkMode(dc, OPAQUE);
+            SetBkColor(dc, inPanel ? kPanel : kBackground);
             return reinterpret_cast<LRESULT>(inPanel ? app->panelBrush_ : app->backgroundBrush_);
         }
         case WM_CTLCOLORBTN:
@@ -1451,6 +1552,55 @@ LRESULT CALLBACK AppWindow::WindowProc(HWND window, UINT message, WPARAM wParam,
         }
         case WM_APP_DEVICE_STATUS: app->UpdateStatusPanel(); return 0;
         case WM_DESTROY: app->OnDestroy(); PostQuitMessage(0); return 0;
+    }
+    return DefWindowProcW(window, message, wParam, lParam);
+}
+
+void AppWindow::ScrollPanel(int position) {
+    position = std::clamp(position, 0, panelScrollMax_);
+    if (position == panelScroll_) return;
+    panelScroll_ = position;
+    RECT client{}; GetClientRect(window_, &client);
+    Layout(client.right, client.bottom);
+}
+
+LRESULT CALLBACK AppWindow::PanelProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
+    auto* app = reinterpret_cast<AppWindow*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+        app = static_cast<AppWindow*>(reinterpret_cast<CREATESTRUCTW*>(lParam)->lpCreateParams);
+        SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+    }
+    if (app) switch (message) {
+        case WM_COMMAND: case WM_HSCROLL: case WM_NOTIFY: case WM_DRAWITEM:
+        case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORBTN: case WM_CTLCOLORLISTBOX:
+            return SendMessageW(app->window_, message, wParam, lParam);
+        case WM_ERASEBKGND: {
+            RECT client{}; GetClientRect(window, &client);
+            FillRect(reinterpret_cast<HDC>(wParam), &client, app->panelBrush_); return 1;
+        }
+        case WM_PAINT: {
+            PAINTSTRUCT paint{}; const HDC dc = BeginPaint(window, &paint);
+            RECT client{}; GetClientRect(window, &client); FillRect(dc, &client, app->panelBrush_);
+            EndPaint(window, &paint); return 0;
+        }
+        case WM_MOUSEWHEEL:
+            app->ScrollPanel(app->panelScroll_ - GET_WHEEL_DELTA_WPARAM(wParam) * 48 / WHEEL_DELTA);
+            return 0;
+        case WM_VSCROLL: {
+            SCROLLINFO info{}; info.cbSize = sizeof(info); info.fMask = SIF_ALL;
+            GetScrollInfo(window, SB_VERT, &info);
+            int position = app->panelScroll_;
+            switch (LOWORD(wParam)) {
+                case SB_LINEUP: position -= 32; break;
+                case SB_LINEDOWN: position += 32; break;
+                case SB_PAGEUP: position -= info.nPage; break;
+                case SB_PAGEDOWN: position += info.nPage; break;
+                case SB_THUMBTRACK: case SB_THUMBPOSITION: position = info.nTrackPos; break;
+                case SB_TOP: position = 0; break;
+                case SB_BOTTOM: position = app->panelScrollMax_; break;
+            }
+            app->ScrollPanel(position); return 0;
+        }
     }
     return DefWindowProcW(window, message, wParam, lParam);
 }

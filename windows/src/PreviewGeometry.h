@@ -33,6 +33,10 @@ struct PreviewDisplayGeometry {
 };
 
 struct WindowPreviewLayout {
+    int headerHeight{};
+    int panelWidth{};
+    int toolbarHeight{};
+    int metricsHeight{};
     int panelX{};
     int leftWidth{};
     int previewAreaHeight{};
@@ -82,17 +86,17 @@ inline PreviewDisplayGeometry CalculatePreviewDisplayGeometry(
 inline WindowPreviewLayout CalculateWindowPreviewLayout(
         int clientWidth, int clientHeight, int sourceWidth, int sourceHeight, int rotationDegrees) {
     constexpr int margin = 20;
-    constexpr int headerHeight = 72;
-    constexpr int panelWidth = 360;
-    constexpr int metricsHeight = 64;
-    constexpr int toolbarHeight = 48;
     constexpr int footerHeight = 26;
     WindowPreviewLayout result{};
-    result.panelX = std::max(680, clientWidth - panelWidth - margin);
-    result.leftWidth = std::max(420, result.panelX - margin * 2);
-    const int previewTop = headerHeight + 12;
+    result.headerHeight = clientWidth < 1280 ? (clientHeight < 520 ? 108 : 128) : 72;
+    result.panelWidth = clientWidth < 1000 ? 260 : (clientWidth < 1200 ? 300 : 360);
+    result.panelX = clientWidth - result.panelWidth - margin;
+    result.leftWidth = std::max(1, result.panelX - margin * 2);
+    result.toolbarHeight = result.leftWidth < 720 && clientHeight >= 520 ? 76 : 48;
+    result.metricsHeight = result.leftWidth < 720 ? (clientHeight < 520 ? 80 : 96) : 64;
+    const int previewTop = result.headerHeight + 12;
     result.previewAreaHeight = std::max(
-        260, clientHeight - previewTop - metricsHeight - toolbarHeight - footerHeight - margin * 2);
+        1, clientHeight - previewTop - result.metricsHeight - result.toolbarHeight - footerHeight - margin * 2);
     const double aspect = EffectivePreviewAspect(sourceWidth, sourceHeight, rotationDegrees);
     result.previewWidth = std::max(1, std::min(
         result.leftWidth, static_cast<int>(result.previewAreaHeight * aspect)));
@@ -101,7 +105,7 @@ inline WindowPreviewLayout CalculateWindowPreviewLayout(
     result.previewX = margin + (result.leftWidth - result.previewWidth) / 2;
     result.previewY = previewTop + (result.previewAreaHeight - result.previewHeight) / 2;
     result.toolbarY = previewTop + result.previewAreaHeight + 10;
-    result.metricsY = result.toolbarY + toolbarHeight + 8;
+    result.metricsY = result.toolbarY + result.toolbarHeight + 8;
     return result;
 }
 
